@@ -1,0 +1,137 @@
+=== TASK 1 ===
+mkdir orion-system
+mkdir config logs scripts reports
+tree
+.
+└── orion-system
+    ├── config
+    ├── logs
+    ├── reports
+    └── scripts
+
+=== TASK 2 ===
+nvim logs/sat-001.log
+nvim logs/sat-002.log
+
+=== TASK 3 ===
+cat sat-001.log 
+2026-03-01 12:00:01 INFO "Telemetry link established"
+2026-03-01 08:00:05 WARN "Temperature above threshold"
+2026-03-02 02:00:10 ERROR "Communication timeout"
+2026-03-02 07:00:10 ERROR "Server error"
+2026-03-04 17:00:01 INFO "Telemetry link established"
+2026-03-07 12:00:10 WARN "Wrong auth credentials"
+
+cat sat-002.log 
+2026-08-01 12:00:01 INFO "Data send to the device"
+2026-08-01 08:00:05 WARN "Sensor temperature above average"
+2026-09-02 02:00:10 ERROR "Pressure gauge not initialized"
+
+head -n 2 logs/sat-001.log 
+2026-03-01 12:00:01 INFO "Telemetry link established"
+2026-03-01 08:00:05 WARN "Temperature above threshold"
+
+tail -n 2 logs/sat-001.log 
+2026-03-04 17:00:01 INFO "Telemetry link established"
+2026-03-07 12:00:10 WARN "Wrong auth credentials"
+
+=== TASK 4 ===
+grep WARN sat-001.log 
+2026-03-01 08:00:05 WARN "Temperature above threshold"
+2026-03-07 12:00:10 WARN "Wrong auth credentials"
+
+grep ERROR sat-001.log 
+2026-03-02 02:00:10 ERROR "Communication timeout"
+2026-03-02 07:00:10 ERROR "Server error"
+
+=== TASK 5 ===
+wc -l sat-001.log 
+6 sat-001.log
+
+grep ERROR sat-001.log | wc -l
+2
+
+=== TASK 6 ===
+ls -l logs
+total 8
+-rw-rw-r-- 1 student student 304 mar 17 12:17 sat-001.log
+-rw-rw-r-- 1 student student 170 mar 17 12:19 sat-002.log
+
+chmod 644 logs/sat-001.log 
+ls -l logs
+total 8
+-rw-r--r-- 1 student student  304 mar 17 12:17 sat-001.log
+-rw-rw-r-- 1 student student  170 mar 17 12:19 sat-002.log
+
+=== TASK 7 ===
+touch reports/lab01.report.txt
+wc -l < logs/sat-001.log >> reports/lab01.report.txt 
+wc -l < logs/sat-002.log >> reports/lab01.report.txt 
+cat logs/sat-001.log logs/sat-002.log | grep WARN | wc -l >> reports/lab01.report.txt
+cat logs/sat-001.log logs/sat-002.log | grep ERROR | wc -l >> reports/lab01.report.txt
+
+content of lab01.report.txt:
+6
+3
+3
+3
+
+=== PRACTICE TASKS ===
+
+--- P1 ---
+tree
+.
+└── orion-system
+    ├── config
+    ├── logs
+    │   ├── sat-001.log
+    │   └── sat-002.log
+    ├── reports
+    │   ├── lab01_check.txt
+    │   └── lab01.report.txt
+    └── scripts
+
+--- P2 ---
+cp logs/sat-001.log logs/sat-001-backup.log
+ls logs/
+sat-001-backup.log  sat-001.log  sat-002.log
+
+--- P3 ---
+cat sat-001.log sat-002.log | grep WARN
+2026-03-01 08:00:05 WARN "Temperature above threshold"
+2026-03-07 12:00:10 WARN "Wrong auth credentials"
+2026-08-01 08:00:05 WARN "Sensor temperature above average"
+
+cat sat-001.log sat-002.log | grep ERROR
+2026-03-02 02:00:10 ERROR "Communication timeout"
+2026-03-02 07:00:10 ERROR "Server error"
+2026-09-02 02:00:10 ERROR "Pressure gauge not initialized"
+
+--- P4 ---
+wc -l < sat-001.log 
+6
+
+grep ERROR sat-002.log | wc -l
+1
+
+--- P5 ---
+chmod 644 sat-002.log 
+ls -l
+total 12
+-rw-r--r-- 1 student student 304 mar 17 12:57 sat-001-backup.log
+-rw-r--r-- 1 student student 304 mar 17 12:17 sat-001.log
+-rw-r--r-- 1 student student 170 mar 17 12:19 sat-002.log
+
+--- P6 ---
+echo '2026-03-01 13:05:00 INFO "Subsystem check completed"' >> sat-001.log 
+
+cat sat-001.log 
+2026-03-01 12:00:01 INFO "Telemetry link established"
+2026-03-01 08:00:05 WARN "Temperature above threshold"
+2026-03-02 02:00:10 ERROR "Communication timeout"
+2026-03-02 07:00:10 ERROR "Server error"
+2026-03-04 17:00:01 INFO "Telemetry link established"
+2026-03-07 12:00:10 WARN "Wrong auth credentials"
+2026-03-01 13:05:00 INFO "Subsystem check completed"
+
+
