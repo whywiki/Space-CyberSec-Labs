@@ -1,0 +1,6 @@
+ORION LOG SUMMARY
+Total log entries:       16
+INFO events:        6
+WARN events:        5
+ERROR events:        5
+Less stable satellite: logs/sat-001-backup.log

@@ -1,0 +1,5 @@
+logs/sat-001-backup.log:2026-03-02 02:00:10 ERROR "Communication timeout"
+logs/sat-001-backup.log:2026-03-02 07:00:10 ERROR "Server error"
+logs/sat-001.log:2026-03-02 02:00:10 ERROR "Communication timeout"
+logs/sat-001.log:2026-03-02 07:00:10 ERROR "Server error"
+logs/sat-002.log:2026-09-02 02:00:10 ERROR "Pressure gauge not initialized"

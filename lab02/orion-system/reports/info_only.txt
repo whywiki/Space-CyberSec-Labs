@@ -1,0 +1,6 @@
+logs/sat-001-backup.log:2026-03-01 12:00:01 INFO "Telemetry link established"
+logs/sat-001-backup.log:2026-03-04 17:00:01 INFO "Telemetry link established"
+logs/sat-001.log:2026-03-01 12:00:01 INFO "Telemetry link established"
+logs/sat-001.log:2026-03-04 17:00:01 INFO "Telemetry link established"
+logs/sat-001.log:2026-03-01 13:05:00 INFO "Subsystem check completed"
+logs/sat-002.log:2026-08-01 12:00:01 INFO "Data send to the device"
