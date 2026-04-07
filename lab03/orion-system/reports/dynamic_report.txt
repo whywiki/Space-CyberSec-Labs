@@ -1,0 +1,20 @@
+DYNAMIC REPORT
+Generated: Tue Apr  7 22:22:46 CEST 2026
+
+File: sat-001.log
+Total entries:      140
+INFO:  106
+WARN:  25
+ERROR: 9
+
+File: sat-002.log
+Total entries:      140
+INFO:  103
+WARN:  23
+ERROR: 14
+
+File: sat-003.log
+Total entries:      140
+INFO:  130
+WARN:  10
+ERROR: 0
