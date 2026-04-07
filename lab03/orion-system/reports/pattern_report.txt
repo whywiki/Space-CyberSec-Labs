@@ -1,0 +1,4 @@
+PATTERN REPORT: WARN
+sat-001.log: 25
+sat-002.log: 23
+sat-003.log: 10

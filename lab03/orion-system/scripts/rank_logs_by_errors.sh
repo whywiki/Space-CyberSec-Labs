@@ -3,5 +3,5 @@
 for file in logs/*.log
 do
     count=$(grep -c ERROR "$file")
-    echo "$(basename $file): $count"
-done
+    echo "$count $file"
+done | sort -rn | awk '{print $2": "$1}'
