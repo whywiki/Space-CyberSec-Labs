@@ -1,4 +1,1 @@
 # Space Cybersecurity Laboratories
-
-test
-
