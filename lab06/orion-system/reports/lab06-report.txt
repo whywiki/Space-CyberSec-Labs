@@ -1,0 +1,105 @@
+PR:
+
+=== TASKS ===
+
+= TASK 1 =
+chmod +x telemetry_receiver.sh telemetry_sender.sh
+./telemetry_receiver.sh
+=== TELEMETRY RECEIVER STARTED ===
+Listening on port 5000
+Logging to /Users/lowsky/Desktop/AGH/6sem/SpaceCS/labs/lab06/orion-system/reports/telemetry_insecure.log
+
+./telemetry_sender.sh
+=== TELEMETRY SENDER STARTED ===
+Sending to 127.0.0.1:5000
+
+[SENT] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:38+02:00;VALUE=38
+[RECEIVED 2026-04-28T12:16:38+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:38+02:00;VALUE=38
+[SENT] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:40+02:00;VALUE=81
+[RECEIVED 2026-04-28T12:16:40+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:40+02:00;VALUE=81
+[SENT] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:42+02:00;VALUE=3
+[RECEIVED 2026-04-28T12:16:42+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:42+02:00;VALUE=3
+[SENT] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:44+02:00;VALUE=3
+[RECEIVED 2026-04-28T12:16:44+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:44+02:00;VALUE=3
+[SENT] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:46+02:00;VALUE=66
+[RECEIVED 2026-04-28T12:16:46+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:46+02:00;VALUE=66
+[SENT] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:48+02:00;VALUE=40
+[RECEIVED 2026-04-28T12:16:48+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:48+02:00;VALUE=40
+[SENT] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:50+02:00;VALUE=32
+[RECEIVED 2026-04-28T12:16:50+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:50+02:00;VALUE=32
+
+cat ../reports/telemetry_insecure.log
+[RECEIVED 2026-04-28T12:16:38+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:38+02:00;VALUE=38
+[RECEIVED 2026-04-28T12:16:40+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:40+02:00;VALUE=81
+[RECEIVED 2026-04-28T12:16:42+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:42+02:00;VALUE=3
+[RECEIVED 2026-04-28T12:16:44+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:44+02:00;VALUE=3
+[RECEIVED 2026-04-28T12:16:46+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:46+02:00;VALUE=66
+[RECEIVED 2026-04-28T12:16:48+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:48+02:00;VALUE=40
+[RECEIVED 2026-04-28T12:16:50+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:50+02:00;VALUE=32
+
+Analysis:
+- Example telemetry messages:
+    SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:38+02:00;VALUE=38
+    SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:40+02:00;VALUE=81
+    SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:42+02:00;VALUE=3
+- SAT_ID field represents the satellite identity (e.g. sat-001).
+- TIMESTAMP field represents the time of the measurement in ISO 8601 format.
+- VALUE field represents the sensor measurement value.
+- The ground segment receives: which satellite sent the message, when the measurement
+  was taken, and what the measured value was. No authentication or integrity information
+  is included.
+
+= TASK 2 =
+netstat -an | grep "\.5000"
+tcp4       0      0  127.0.0.1.5000         *.*                    LISTEN
+
+tail -f ../reports/telemetry_insecure.log
+[RECEIVED 2026-04-28T12:16:38+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:38+02:00;VALUE=38
+[RECEIVED 2026-04-28T12:16:40+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:40+02:00;VALUE=81
+[RECEIVED 2026-04-28T12:16:42+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:42+02:00;VALUE=3
+[RECEIVED 2026-04-28T12:16:44+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:44+02:00;VALUE=3
+[RECEIVED 2026-04-28T12:16:46+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:46+02:00;VALUE=66
+[RECEIVED 2026-04-28T12:16:48+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:48+02:00;VALUE=40
+[RECEIVED 2026-04-28T12:16:50+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:50+02:00;VALUE=32
+
+Analysis:
+- Command used: netstat -an | grep ".5000" to identify port, tail -f on the log to
+  observe traffic (tcpdump alternative, as it requires sudo on macOS).
+- Observed fragment:
+    SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:16:40+02:00;VALUE=81
+- The telemetry can be read by any observer because messages are transmitted as plain
+  text over an unencrypted TCP connection. No TLS or encryption is applied.
+- Missing security properties: confidentiality (data is readable in transit),
+  integrity (messages can be altered undetected), authenticity (no way to verify
+  the sender is the real satellite).
+- Mission risks: an adversary could read satellite sensor data, infer spacecraft
+  status or orbit, and use that information for targeted interference or to time
+  a jamming or spoofing attack.
+
+= TASK 3 =
+echo "SAT_ID=sat-001;TIMESTAMP=$(date -Iseconds);VALUE=9999" | nc -w 1 127.0.0.1 5000
+[RECEIVED 2026-04-28T12:35:14+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:35:14+02:00;VALUE=9999
+
+echo "SAT_ID=sat-002;TIMESTAMP=$(date -Iseconds);VALUE=-100" | nc -w 1 127.0.0.1 5000
+[RECEIVED 2026-04-28T12:35:15+02:00] SAT_ID=sat-002;TIMESTAMP=2026-04-28T12:35:15+02:00;VALUE=-100
+
+tail -n 20 ../reports/telemetry_insecure.log
+[RECEIVED 2026-04-28T12:35:14+02:00] SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:35:14+02:00;VALUE=9999
+[RECEIVED 2026-04-28T12:35:15+02:00] SAT_ID=sat-002;TIMESTAMP=2026-04-28T12:35:15+02:00;VALUE=-100
+
+Analysis:
+- Injected messages:
+    SAT_ID=sat-001;TIMESTAMP=2026-04-28T12:35:14+02:00;VALUE=9999
+    SAT_ID=sat-002;TIMESTAMP=2026-04-28T12:35:15+02:00;VALUE=-100
+- Both messages were accepted by the receiver and written to the log without any
+  warning or rejection.
+- The receiver accepted forged messages because it performs no authentication check.
+  It reads any data arriving on port 5000 and logs it as valid telemetry. There is
+  no shared secret, signature, or identity verification of any kind.
+- Fake telemetry could cause operators to believe a sensor reading of 9999 or -100
+  is real, triggering incorrect mission decisions: unnecessary maneuvers, false
+  anomaly alerts, premature shutdown of systems, or masking of a real failure by
+  flooding the log with noise.
+- The security mechanism needed is message authentication — specifically HMAC or a
+  digital signature — so the receiver can verify that each message was produced by
+  the legitimate satellite and has not been forged or modified in transit.
