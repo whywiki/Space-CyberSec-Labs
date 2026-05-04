@@ -103,3 +103,124 @@ Analysis:
 - The security mechanism needed is message authentication — specifically HMAC or a
   digital signature — so the receiver can verify that each message was produced by
   the legitimate satellite and has not been forged or modified in transit.
+
+= TASK 4 =
+cp telemetry_sender.sh telemetry_secure_sender.sh
+cp telemetry_receiver.sh telemetry_secure_receiver.sh
+chmod +x telemetry_secure_sender.sh telemetry_secure_receiver.sh
+
+./telemetry_secure_receiver.sh
+=== SECURE TELEMETRY RECEIVER STARTED ===
+Listening on port 5001
+Logging to .../reports/telemetry_secure.log
+
+./telemetry_secure_sender.sh
+=== SECURE TELEMETRY SENDER STARTED ===
+Sending to 127.0.0.1:5001
+
+[SENT] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:00+02:00;VALUE=48;SIGNATURE=27bada869fddb691dc6547b6b4da0fe8e8e9b17be1f1b5e29d56784b763436fb
+[ACCEPTED 2026-05-04T22:26:00+02:00] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:00+02:00;VALUE=48
+[SENT] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:02+02:00;VALUE=8;SIGNATURE=6d348da7846fe1f6b02792f6900f0a4f13ae78ed1518fd3c3dc39d84f57b099e
+[ACCEPTED 2026-05-04T22:26:02+02:00] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:02+02:00;VALUE=8
+[SENT] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:04+02:00;VALUE=6;SIGNATURE=f6645978652d43a473757f9a7a0df2dc9b74ea63afe2fd3c4c6175f01b19e792
+[ACCEPTED 2026-05-04T22:26:04+02:00] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:04+02:00;VALUE=6
+
+# Injection attack: fake signature
+echo "SAT_ID=sat-001;TIMESTAMP=$(date -Iseconds);VALUE=9999;SIGNATURE=fake" | nc -w 1 127.0.0.1 5001
+[REJECTED 2026-05-04T22:26:23+02:00] INVALID SIGNATURE: SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:23+02:00;VALUE=9999;SIGNATURE=fake
+
+# Injection attack: valid structure but VALUE tampered (old signature kept)
+echo "SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:24+02:00;VALUE=9999;SIGNATURE=267e90daaa84f8a1c7b76ed4cf0094ae6dc369883bc14e4fd2aae84f80560529" | nc -w 1 127.0.0.1 5001
+[REJECTED 2026-05-04T22:26:24+02:00] INVALID SIGNATURE: SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:24+02:00;VALUE=9999;SIGNATURE=267e90daaa84f8a1c7b76ed4cf0094ae6dc369883bc14e4fd2aae84f80560529
+
+cat ../reports/telemetry_secure.log
+[ACCEPTED 2026-05-04T22:26:00+02:00] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:00+02:00;VALUE=48
+[ACCEPTED 2026-05-04T22:26:02+02:00] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:02+02:00;VALUE=8
+[ACCEPTED 2026-05-04T22:26:04+02:00] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:04+02:00;VALUE=6
+[REJECTED 2026-05-04T22:26:23+02:00] INVALID SIGNATURE: SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:23+02:00;VALUE=9999;SIGNATURE=fake
+[REJECTED 2026-05-04T22:26:24+02:00] INVALID SIGNATURE: SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:24+02:00;VALUE=9999;SIGNATURE=267e90daaa84f8a1c7b76ed4cf0094ae6dc369883bc14e4fd2aae84f80560529
+
+Analysis:
+- Accepted signed message:
+    SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:00+02:00;VALUE=48;SIGNATURE=27bada869fddb691dc6547b6b4da0fe8e8e9b17be1f1b5e29d56784b763436fb
+- Rejected forged message (fake signature):
+    SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:23+02:00;VALUE=9999;SIGNATURE=fake
+- Changing VALUE alters the input bytes fed to HMAC-SHA256. Even a single byte
+  change produces a completely different digest, so the recomputed expected signature
+  does not match the old one that was sent with the original message.
+- HMAC protects against: message modification (any change to fields is detectable),
+  message forgery by parties who do not know the shared secret key, and impersonation
+  of the satellite.
+- HMAC does not protect against: replay of a previously valid message (the signature
+  is still valid even if the message is old), confidentiality (the content is still
+  plaintext), or attacks by someone who already knows the shared secret.
+- Telemetry is still visible in tcpdump because HMAC does not encrypt the payload.
+  It only appends an authentication tag; all fields (SAT_ID, TIMESTAMP, VALUE) are
+  transmitted as plaintext over the TCP connection.
+
+= TASK 5 =
+# Before protection: replay a valid previously accepted message
+echo "SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:00+02:00;VALUE=48;SIGNATURE=27bada869fddb691dc6547b6b4da0fe8e8e9b17be1f1b5e29d56784b763436fb" | nc -w 1 127.0.0.1 5001
+[REJECTED 2026-05-04T22:26:26+02:00] REPLAY DETECTED: SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:00+02:00;VALUE=48
+
+cat ../reports/telemetry_secure.log
+[ACCEPTED 2026-05-04T22:26:00+02:00] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:00+02:00;VALUE=48
+[ACCEPTED 2026-05-04T22:26:02+02:00] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:02+02:00;VALUE=8
+[ACCEPTED 2026-05-04T22:26:04+02:00] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:04+02:00;VALUE=6
+[REJECTED 2026-05-04T22:26:23+02:00] INVALID SIGNATURE: SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:23+02:00;VALUE=9999;SIGNATURE=fake
+[REJECTED 2026-05-04T22:26:24+02:00] INVALID SIGNATURE: SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:24+02:00;VALUE=9999;SIGNATURE=267e90daaa84f8a1c7b76ed4cf0094ae6dc369883bc14e4fd2aae84f80560529
+[REJECTED 2026-05-04T22:26:26+02:00] REPLAY DETECTED: SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:00+02:00;VALUE=48
+
+Analysis:
+- Accepted message:
+    [ACCEPTED 2026-05-04T22:26:04+02:00] SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:04+02:00;VALUE=6
+- Rejected replayed message:
+    [REJECTED 2026-05-04T22:26:26+02:00] REPLAY DETECTED: SAT_ID=sat-001;TIMESTAMP=2026-05-04T22:26:00+02:00;VALUE=48
+- HMAC alone is not sufficient because a valid signed message captured from the
+  channel can be resent verbatim. The HMAC verifies correctly since neither the data
+  nor the signature has changed, so without extra state the receiver cannot tell the
+  message is old.
+- Timestamp prevents replay because the receiver tracks the last accepted timestamp
+  per satellite. Any message whose timestamp is equal to or earlier than the stored
+  value is rejected, regardless of its valid HMAC. A legitimate new message always
+  carries a strictly later timestamp.
+- Limitations: relies on clocks being monotonic and reasonably synchronized; if the
+  satellite clock is reset or drifts backward, legitimate messages get rejected.
+  The state file is in memory/process scope only — a receiver restart clears the
+  last-timestamp database, opening a window where old messages would be accepted
+  again. Additionally, an attacker with a very recent valid message could replay it
+  within the same second if the sender fires multiple messages per second.
+
+=== FINAL REFLECTION ===
+
+- What was possible in the insecure telemetry channel?
+  Any process on the network could read all telemetry in plaintext, inject arbitrary
+  messages, and impersonate any satellite — the receiver accepted everything without
+  question.
+
+- Which attacks were blocked by HMAC?
+  Message forgery (crafting a new fake message), message modification (changing any
+  field of an intercepted message), and impersonation of the satellite without
+  knowing the shared secret.
+
+- Which attacks were still possible after adding HMAC?
+  Replay attacks: a valid signed message captured from the channel could be resent
+  and accepted again because HMAC carries no freshness information.
+
+- Why was replay protection needed as a separate mechanism?
+  HMAC only proves that the message was produced by someone who knows the secret and
+  that its content was not altered. It says nothing about when the message was
+  created or whether it has already been delivered. Preventing replay requires
+  stateful freshness checks (timestamps or sequence numbers) that go beyond what a
+  MAC can provide.
+
+- Why does this laboratory still not provide confidentiality?
+  Neither HMAC nor timestamp checks encrypt the payload. All fields — SAT_ID,
+  TIMESTAMP, VALUE, and SIGNATURE — are transmitted as plaintext TCP. Any observer
+  on the path can still read the telemetry content in full.
+
+- What additional protections would be needed for the command channel?
+  Encryption (e.g. TLS or symmetric encryption) to provide confidentiality; mutual
+  authentication so the satellite also verifies the ground segment's identity;
+  stricter replay protection with sequence numbers rather than timestamps alone; and
+  possibly asymmetric signatures so the signing key never leaves the satellite.
