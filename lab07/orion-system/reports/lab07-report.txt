@@ -168,3 +168,216 @@ cat ../reports/command_hmac_authentication.log
 - HMAC protects against: forgery and tampering
 - HMAC does not protect against: replay, confidentiality (fields still visible in plaintext)
 - commands still visible in tcpdump - HMAC is not encryption
+
+= TASK 5 =
+python3 scripts/run_tasks.py 5
+
+=== REPLAY PROTECTED COMMAND RECEIVER STARTED ===
+Listening on 127.0.0.1:6004
+
+[SENDING] USER=alice;ROLE=operator;CMD=SET_MODE_SAFE;COMMAND_ID=CMD-20260518231620-5399;TIMESTAMP=2026-05-18T23:16:20+02:00;AUTH=89455961db9e8f507322867d343f8fce6219277aa9d0cff711eb61d4641481a5
+[RECEIVED 2026-05-18T23:16:20+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE COMMAND_ID=CMD-20260518231620-5399
+[AUTHORIZED] USER=alice ROLE=operator CMD=SET_MODE_SAFE COMMAND_ID=CMD-20260518231620-5399
+[ACTION] Switching satellite mode to SAFE
+
+[REPLAYING] USER=alice;ROLE=operator;CMD=SET_MODE_SAFE;COMMAND_ID=CMD-20260518231620-5399;TIMESTAMP=2026-05-18T23:16:20+02:00;AUTH=89455961db9e8f507322867d343f8fce6219277aa9d0cff711eb61d4641481a5
+[RECEIVED 2026-05-18T23:16:21+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE COMMAND_ID=CMD-20260518231620-5399
+[REJECTED] REPLAY DETECTED: COMMAND_ID=CMD-20260518231620-5399
+
+[SENDING] USER=bob;ROLE=admin;CMD=RESET;COMMAND_ID=CMD-20260518231622-7301;TIMESTAMP=2026-05-18T23:16:22+02:00;AUTH=b96d18776e87234e38e046e9630d7de2adf2ffb80d4ba4b42cc28cb2d7911dea
+[RECEIVED 2026-05-18T23:16:22+02:00] USER=bob ROLE=admin CMD=RESET COMMAND_ID=CMD-20260518231622-7301
+
+cat ../reports/command_replay_protection.log
+[RECEIVED 2026-05-18T23:16:20+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE COMMAND_ID=CMD-20260518231620-5399 RAW=USER=alice;ROLE=operator;CMD=SET_MODE_SAFE;COMMAND_ID=CMD-20260518231620-5399;TIMESTAMP=2026-05-18T23:16:20+02:00;AUTH=89455961db9e8f507322867d343f8fce6219277aa9d0cff711eb61d4641481a5
+[AUTHORIZED 2026-05-18T23:16:20+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE COMMAND_ID=CMD-20260518231620-5399 RAW=USER=alice;ROLE=operator;CMD=SET_MODE_SAFE;COMMAND_ID=CMD-20260518231620-5399;TIMESTAMP=2026-05-18T23:16:20+02:00;AUTH=89455961db9e8f507322867d343f8fce6219277aa9d0cff711eb61d4641481a5
+[ACTION 2026-05-18T23:16:20+02:00] SET_MODE_SAFE
+[RECEIVED 2026-05-18T23:16:21+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE COMMAND_ID=CMD-20260518231620-5399 RAW=USER=alice;ROLE=operator;CMD=SET_MODE_SAFE;COMMAND_ID=CMD-20260518231620-5399;TIMESTAMP=2026-05-18T23:16:20+02:00;AUTH=89455961db9e8f507322867d343f8fce6219277aa9d0cff711eb61d4641481a5
+[REJECTED] REPLAY DETECTED: COMMAND_ID=CMD-20260518231620-5399 RAW=USER=alice;ROLE=operator;CMD=SET_MODE_SAFE;COMMAND_ID=CMD-20260518231620-5399;TIMESTAMP=2026-05-18T23:16:20+02:00;AUTH=89455961db9e8f507322867d343f8fce6219277aa9d0cff711eb61d4641481a5
+[RECEIVED 2026-05-18T23:16:22+02:00] USER=bob ROLE=admin CMD=RESET COMMAND_ID=CMD-20260518231622-7301 RAW=USER=bob;ROLE=admin;CMD=RESET;COMMAND_ID=CMD-20260518231622-7301;TIMESTAMP=2026-05-18T23:16:22+02:00;AUTH=b96d18776e87234e38e046e9630d7de2adf2ffb80d4ba4b42cc28cb2d7911dea
+[AUTHORIZED 2026-05-18T23:16:22+02:00] USER=bob ROLE=admin CMD=RESET COMMAND_ID=CMD-20260518231622-7301 RAW=USER=bob;ROLE=admin;CMD=RESET;COMMAND_ID=CMD-20260518231622-7301;TIMESTAMP=2026-05-18T23:16:22+02:00;AUTH=b96d18776e87234e38e046e9630d7de2adf2ffb80d4ba4b42cc28cb2d7911dea
+[ACTION 2026-05-18T23:16:22+02:00] RESET
+
+- HMAC alone is not sufficient - a captured valid message can be resent unchanged
+- COMMAND_ID is a unique per-command identifier; receiver stores seen IDs and rejects duplicates
+- replay is more dangerous for commands than telemetry - replaying CMD=SHUTDOWN can crash the system
+- limitation: state file grows forever; in practice a time window or sequence number is used
+
+= TASK 6 =
+python3 scripts/run_tasks.py 6
+
+=== SAFETY GATE COMMAND RECEIVER STARTED ===
+Listening on 127.0.0.1:6005
+
+[SENDING] USER=alice;ROLE=operator;CMD=SET_MODE_SAFE;COMMAND_ID=CMD-20260518231850-2634;TIMESTAMP=2026-05-18T23:18:50+02:00;AUTH=7271aa6e5769e089f7b80a91ad247973f307c3469d586c393fddb59d444318ce
+[RECEIVED 2026-05-18T23:18:50+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE
+[AUTHORIZED] USER=alice ROLE=operator CMD=SET_MODE_SAFE
+[ACTION] Switching satellite mode to SAFE
+
+[SENDING] USER=bob;ROLE=admin;CMD=SHUTDOWN;COMMAND_ID=CMD-20260518231851-9203;TIMESTAMP=2026-05-18T23:18:51+02:00;AUTH=7bbb6238f1d080bc1094ce0695658d9158fa9bd968cede34e72be166e0a7b433
+[RECEIVED 2026-05-18T23:18:51+02:00] USER=bob ROLE=admin CMD=SHUTDOWN
+[PENDING] CRITICAL COMMAND REQUIRES CONFIRMATION REQUEST_ID=REQ-20260518231851-1884
+
+[SENDING] USER=bob;ROLE=admin;CMD=CONFIRM;REQUEST_ID=REQ-20260518231851-1884;COMMAND_ID=CMD-20260518231852-6445;TIMESTAMP=2026-05-18T23:18:52+02:00;AUTH=593112af1dd2c5522b9e0c4f196ac5e1f534e623328d3853f3a0dd9ade57a7ce
+[RECEIVED 2026-05-18T23:18:52+02:00] USER=bob ROLE=admin CMD=CONFIRM
+[CONFIRMED] EXECUTING REQUEST_ID=REQ-20260518231851-1884 CMD=SHUTDOWN
+[ACTION] Simulated satellite shutdown
+
+[SENDING] USER=bob;ROLE=admin;CMD=CONFIRM;REQUEST_ID=REQ-DOES-NOT-EXIST;COMMAND_ID=CMD-20260518231854-2882;TIMESTAMP=2026-05-18T23:18:54+02:00;AUTH=361170275c757ba1e5eb618037a72be841a714e022626e77b32a6d36bae45454
+[RECEIVED 2026-05-18T23:18:54+02:00] USER=bob ROLE=admin CMD=CONFIRM
+[REJECTED] UNKNOWN REQUEST_ID=REQ-DOES-NOT-EXIST
+
+[SENDING] USER=alice;ROLE=operator;CMD=CONFIRM;REQUEST_ID=REQ-OPERATOR-ATTEMPT;COMMAND_ID=CMD-20260518231855-3832;TIMESTAMP=2026-05-18T23:18:55+02:00;AUTH=178853d22ed6713136f4df8c9e0af9304d109b36196e4ec3087c3e56caf62c84
+[RECEIVED 2026-05-18T23:18:55+02:00] USER=alice ROLE=operator CMD=CONFIRM
+[REJECTED] INSUFFICIENT ROLE FOR CONFIRM: USER=alice ROLE=operator
+
+cat ../reports/command_safety_gate.log
+[RECEIVED 2026-05-18T23:18:50+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE RAW=...
+[AUTHORIZED 2026-05-18T23:18:50+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE RAW=...
+[ACTION 2026-05-18T23:18:50+02:00] SET_MODE_SAFE
+[RECEIVED 2026-05-18T23:18:51+02:00] USER=bob ROLE=admin CMD=SHUTDOWN RAW=...
+[PENDING 2026-05-18T23:18:51+02:00] USER=bob ROLE=admin CMD=SHUTDOWN REQUEST_ID=REQ-20260518231851-1884
+[RECEIVED 2026-05-18T23:18:52+02:00] USER=bob ROLE=admin CMD=CONFIRM RAW=...
+[CONFIRMED 2026-05-18T23:18:52+02:00] REQUEST_ID=REQ-20260518231851-1884 CMD=SHUTDOWN
+[ACTION 2026-05-18T23:18:52+02:00] SHUTDOWN
+[RECEIVED 2026-05-18T23:18:54+02:00] USER=bob ROLE=admin CMD=CONFIRM RAW=...
+[REJECTED] UNKNOWN REQUEST_ID=REQ-DOES-NOT-EXIST RAW=...
+[RECEIVED 2026-05-18T23:18:55+02:00] USER=alice ROLE=operator CMD=CONFIRM RAW=...
+[REJECTED] INSUFFICIENT ROLE FOR CONFIRM: USER=alice ROLE=operator RAW=...
+
+- authentication alone is not enough for critical commands - an authorized admin could still misfire
+- cybersecurity = who can send what; operational safety = what is safe to execute now
+- two-step gate reduces risk of accidental or single-point malicious execution
+- real systems use: time windows, multi-person approval, pre-flight checklists, inhibit switches
+
+= TASK 7 =
+python3 scripts/run_tasks.py 7
+
+=== SAFE TLS COMMAND RECEIVER STARTED ===
+Listening on 127.0.0.1:7005
+
+[TLS RECEIVER] started on 127.0.0.1:7005 (TLS-protected safety gate)
+[SENDING via TLS] USER=alice;ROLE=operator;CMD=SET_MODE_SAFE;COMMAND_ID=CMD-20260518232805-5252;TIMESTAMP=2026-05-18T23:28:05+02:00;AUTH=6cfa5bb1cabf7d7033f4cb0d6e02e4f82da02c5f29e12cdc8c85173842ca6d1b
+[RECEIVED 2026-05-18T23:28:05+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE
+[AUTHORIZED] USER=alice ROLE=operator CMD=SET_MODE_SAFE
+[ACTION] Switching satellite mode to SAFE
+
+[SENDING via TLS forged] USER=intruder;ROLE=admin;CMD=SHUTDOWN;COMMAND_ID=BAD-001;TIMESTAMP=2026-05-18T23:28:07+02:00;AUTH=fake
+[RECEIVED 2026-05-18T23:28:07+02:00] USER=intruder ROLE=admin CMD=SHUTDOWN
+[REJECTED] UNKNOWN USER: intruder
+
+[SENDING via TLS] USER=bob;ROLE=admin;CMD=SHUTDOWN;COMMAND_ID=CMD-20260518232808-9860;TIMESTAMP=2026-05-18T23:28:08+02:00;AUTH=7530c1b84682da47429ba92a20deec5e2c6d058ea5c523ed8785974b09ce5732
+[RECEIVED 2026-05-18T23:28:08+02:00] USER=bob ROLE=admin CMD=SHUTDOWN
+[PENDING] CRITICAL COMMAND REQUIRES CONFIRMATION REQUEST_ID=REQ-20260518232808-8109
+
+[SENDING via TLS] USER=bob;ROLE=admin;CMD=CONFIRM;REQUEST_ID=REQ-20260518232808-8109;COMMAND_ID=CMD-20260518232809-8401;TIMESTAMP=2026-05-18T23:28:09+02:00;AUTH=97ef625555a549ead9f76dbb73236f45656c42439e091d5c8c366d4f69221f7f
+[RECEIVED 2026-05-18T23:28:09+02:00] USER=bob ROLE=admin CMD=CONFIRM
+[CONFIRMED] EXECUTING REQUEST_ID=REQ-20260518232808-8109 CMD=SHUTDOWN
+[ACTION] Simulated satellite shutdown
+
+cat ../reports/command_safety_gate.log
+[RECEIVED 2026-05-18T23:28:05+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE RAW=...
+[AUTHORIZED 2026-05-18T23:28:05+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE RAW=...
+[ACTION 2026-05-18T23:28:05+02:00] SET_MODE_SAFE
+[RECEIVED 2026-05-18T23:28:07+02:00] USER=intruder ROLE=admin CMD=SHUTDOWN RAW=...
+[REJECTED] UNKNOWN USER: intruder RAW=...
+[RECEIVED 2026-05-18T23:28:08+02:00] USER=bob ROLE=admin CMD=SHUTDOWN RAW=...
+[PENDING 2026-05-18T23:28:08+02:00] USER=bob ROLE=admin CMD=SHUTDOWN REQUEST_ID=REQ-20260518232808-8109
+[RECEIVED 2026-05-18T23:28:09+02:00] USER=bob ROLE=admin CMD=CONFIRM RAW=...
+[CONFIRMED 2026-05-18T23:28:09+02:00] REQUEST_ID=REQ-20260518232808-8109 CMD=SHUTDOWN
+[ACTION 2026-05-18T23:28:09+02:00] SHUTDOWN
+
+ss -ltnp | grep 7005: port only bound to 127.0.0.1 (loopback interface)
+tcpdump on port 7005: TLS encrypted traffic, command fields not readable as plaintext
+
+- TLS hides: user identity, role, command type, timestamp, AUTH value - all encrypted in transit
+- TLS does not replace application security - receiver still checks HMAC, replay, authorization, safety gate
+- TLS protects against passive observers; application logic protects against authenticated attackers
+
+= TASK 8 =
+python3 scripts/run_tasks.py 8
+
+=== HMAC TLS COMMAND RECEIVER STARTED ===
+Listening on 127.0.0.1:7005
+
+[SOCAT ALTERNATIVE] Python ssl TLS receiver on 127.0.0.1:7005
+equivalent socat command:
+  socat OPENSSL-LISTEN:7005,cert=.../orion.pem,verify=0,fork TCP:127.0.0.1:6003
+[SENDING via TLS] USER=alice;ROLE=operator;CMD=SET_MODE_SAFE;TIMESTAMP=2026-05-18T23:29:44+02:00;AUTH=57260b1d96a2e7294d093aa62d0b787c6aa491562748d1b67acd657866179d96
+[RECEIVED 2026-05-18T23:29:44+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE
+[AUTHORIZED] USER=alice ROLE=operator CMD=SET_MODE_SAFE
+[ACTION] Switching satellite mode to SAFE
+
+[SENDING via TLS] USER=bob;ROLE=admin;CMD=RESET;TIMESTAMP=2026-05-18T23:29:45+02:00;AUTH=250dae79ca21942b582ea96e3b5fea43b4b4f6594fa5e689ac4afff50195501e
+[RECEIVED 2026-05-18T23:29:45+02:00] USER=bob ROLE=admin CMD=RESET
+[AUTHORIZED] USER=bob ROLE=admin CMD=RESET
+[ACTION] Simulated satellite reset
+
+cat ../reports/command_hmac_authentication.log
+[RECEIVED 2026-05-18T23:29:44+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE RAW=...AUTH=57260b1d...
+[AUTHORIZED 2026-05-18T23:29:44+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE RAW=...
+[ACTION 2026-05-18T23:29:44+02:00] SET_MODE_SAFE
+[RECEIVED 2026-05-18T23:29:45+02:00] USER=bob ROLE=admin CMD=RESET RAW=...AUTH=250dae79...
+[AUTHORIZED 2026-05-18T23:29:45+02:00] USER=bob ROLE=admin CMD=RESET RAW=...
+[ACTION 2026-05-18T23:29:45+02:00] RESET
+
+port 7005 (TLS): encrypted TLS data - command fields not readable
+vs plain TCP: USER=alice;ROLE=operator;CMD=SET_MODE_SAFE;... visible in tcpdump
+
+- socat OPENSSL-LISTEN wraps a TCP port in TLS; Python ssl module does the same in-process
+- socat is easier to debug (one command, readable flags); Python ssl is easier to embed in automation
+- stunnel is better for production daemons; socat better for one-shot testing; Python ssl better for CI
+- socat may be more suitable for embedded Linux (single binary); stunnel needs config file management
+- packet capture: port 7005 shows TLS handshake + opaque encrypted records; port 6003 would show plaintext
+
+= TASK 9 =
+python3 scripts/run_tasks.py 9
+
+=== TASK 9: VARIANT A - INTERFACE ISOLATION ===
+
+TLS receiver bound to 127.0.0.1:7005 (loopback only)
+
+ss -ltnp (filtered for ports 6005 and 7005):
+  LISTEN 0      0                        127.0.0.1:7005       0.0.0.0:*    users:(("python3",pid=290077,fd=3))
+
+[SENDING via TLS to 127.0.0.1:7005] USER=alice;ROLE=operator;CMD=SET_MODE_SAFE;COMMAND_ID=CMD-20260518232947-5083;TIMESTAMP=2026-05-18T23:29:47+02:00;AUTH=7eea26fcfeadca0848cb4c3e6c5fd77ecfbff8d1544050a887b29bab82e69759
+[RECEIVED 2026-05-18T23:29:47+02:00] USER=alice ROLE=operator CMD=SET_MODE_SAFE
+[AUTHORIZED] USER=alice ROLE=operator CMD=SET_MODE_SAFE
+[ACTION] Switching satellite mode to SAFE
+
+- tunnel accepts only on 127.0.0.1 (loopback)
+- no external interface exposed
+- reducing network exposure limits attack surface to local processes only
+- in real mission: ground segment network may require binding to a specific LAN interface
+
+=== MISSION ORION INCIDENT ANALYSIS ===
+
+1. unauthenticated command -> succeeds in insecure channel (task1); blocked by HMAC (task4+)
+2. forged ROLE=admin command -> accepted by task2 receiver; blocked by token auth (task3+)
+3. token captured from task3 channel -> attacker reuses token to authenticate as that user
+4. SHUTDOWN with captured token -> succeeds against task3 receiver; blocked by HMAC (task4+)
+5. forged HMAC without token -> blocked (INVALID AUTH / UNKNOWN USER)
+6. replay of valid HMAC command -> succeeds against task4 receiver; blocked by replay protection (task5+)
+7. confirm without valid request id -> blocked by safety gate (UNKNOWN REQUEST_ID)
+8. tcpdump on TLS channel -> encrypted data, no readable fields
+
+- easiest attack in insecure channel: manual nc injection with any crafted message
+- role auth without authentication: attacker sets any role in their own message
+- token over network: captured and reused for any future command
+- HMAC better: never transmits the secret; receiver recomputes and compares
+- HMAC does not prevent replay: same signed message is still valid on second send
+- replay dangerous for commands: CMD=SHUTDOWN repeated can destabilize the satellite
+- valid command still unsafe: timing, system state, or double-execution makes it dangerous
+- TLS hides: all message fields from passive observer on the wire
+- missing in lab vs real systems: PKI certificate management, hardware security modules, key rotation, multi-person authorization, formal command uplink protocols, out-of-band confirmation channels
+
+=== FINAL REFLECTION ===
+
+- insecure channel: anyone could send any command with any identity
+- authorization blocked: operators from running admin commands
+- authentication blocked: unknown users and role impersonation
+- HMAC blocked: forgery and message tampering
+- replay protection blocked: reuse of previously valid messages
+- safety gate needed: to prevent immediate execution of dangerous commands even by legitimate admins
+- HMAC no confidentiality: fields visible in plaintext; only the secret is hidden
+- TLS no authorization: TLS encrypts transport but does not decide if a command is allowed
+- real channel needs: mutual TLS, hardware tokens, time-limited tokens, formal uplink protocol
