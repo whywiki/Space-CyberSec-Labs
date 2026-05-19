@@ -1,0 +1,105 @@
+PR:
+
+=== TASKS ===
+
+= TASK 0 =
+docker --version
+Docker version 27.4.0, build bde2b89
+
+docker compose version
+Docker Compose version v2.31.0-desktop.2
+
+docker run hello-world
+Unable to find image 'hello-world:latest' locally
+latest: Pulling from library/hello-world
+e6590344b1a5: Pull complete
+Digest: sha256:7e1a4e2acc4ee18f638b3a475b8e5ee9e9da2f8d3f3a2c3e98e8d8a9b0d7c2e1
+Status: Downloaded newer image for hello-world:latest
+
+Hello from Docker!
+This message shows that your installation appears to be working correctly.
+
+- Docker version: 27.4.0
+- Docker daemon is the background service that manages containers, images, networks, volumes; it receives commands from the docker CLI and performs the actual work
+- Docker uses containers to isolate software environments so code runs consistently across different machines regardless of local configuration
+- Linux groups control which users can access the Docker socket (/var/run/docker.sock); adding a user to the docker group lets them run docker commands without sudo
+- when hello-world ran, Docker pulled the image from Docker Hub, created a container from it, started it, and it printed the message then exited
+
+= TASK 1 =
+docker compose up -d
+[+] Running 1/1
+ Container grafana  Started
+
+docker ps
+CONTAINER ID   IMAGE                    COMMAND     CREATED         STATUS         PORTS                    NAMES
+...            grafana/grafana:latest   "/run.sh"   7 seconds ago   Up 6 seconds   0.0.0.0:3000->3000/tcp   grafana
+
+- opened http://localhost:3000, logged in with admin/admin
+- Grafana running, no data sources configured yet
+
+= TASK 2 =
+docker compose down
+docker compose up -d
+[+] Running 2/2
+ Container prometheus  Started
+ Container grafana     Started
+
+docker ps
+NAMES        STATUS
+grafana      Up
+prometheus   Up
+
+curl http://localhost:9090/api/v1/query --data-urlencode "query=up"
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"up","instance":"prometheus:9090","job":"prometheus"},"value":[...,"1"]}]}}
+
+- up = 1: Prometheus can reach its scrape target (itself)
+- scrape_samples_scraped: shows how many metric samples were collected in the last scrape
+- scrape_duration_seconds: shows how long the scrape operation took
+- Grafana -> Connections -> Data sources shows Prometheus loaded from provisioning
+
+= TASK 3 =
+docker compose down
+docker compose up -d
+[+] Running 4/4
+ Container loki      Started
+ Container promtail  Started
+ Container grafana   Started
+ Container prometheus Started
+
+curl http://localhost:3100/ready
+ready
+
+- Grafana -> Connections -> Data sources shows Prometheus and Loki
+- Explore -> Loki -> {job="docker"} returns Docker container log entries
+
+= TASK 4 =
+docker compose up -d
+[+] Running 6/6
+ Container grafana        Running
+ Container prometheus     Running
+ Container loki           Running
+ Container promtail       Running
+ Container tempo          Started
+ Container otel-collector Started
+
+docker ps
+NAMES            STATUS          PORTS
+otel-collector   Up              0.0.0.0:4318->4318/tcp, 0.0.0.0:8889->8889/tcp
+promtail         Up
+grafana          Up              0.0.0.0:3000->3000/tcp
+prometheus       Up              0.0.0.0:9090->9090/tcp
+tempo            Up              0.0.0.0:3200->3200/tcp
+loki             Up              0.0.0.0:3100->3100/tcp
+
+curl http://localhost:3200/ready
+ready
+
+docker logs otel-collector --tail 5
+2026-05-19T10:22:36.332Z  info  service@v0.152.0/service.go:264  Everything is ready. Begin running and processing data.
+
+curl http://localhost:9090/api/v1/query --data-urlencode "query=up"
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"up","instance":"otel-collector:8889","job":"otel-collector"},"value":[...,"1"]}]}}
+
+- up{instance="otel-collector:8889"} = 1: Prometheus reaches OpenTelemetry Collector
+- Grafana -> Connections -> Data sources shows Prometheus, Loki, Tempo
+- telemetry pipeline operational; no mission traces generated yet
