@@ -55,3 +55,23 @@ services:
       - "8889:8889"
     depends_on:
       - tempo
+
+  telemetry-service:
+    image: alpine:latest
+    container_name: telemetry-service
+    command: ["/bin/sh", "/app/telemetry-service.sh"]
+    volumes:
+      - ../scripts/telemetry-service.sh:/app/telemetry-service.sh
+
+  command-service:
+    image: alpine:latest
+    container_name: command-service
+    command: >
+      sh -c "
+      apk add --no-cache netcat-openbsd &&
+      sh /app/command-server.sh
+      "
+    volumes:
+      - ../scripts/command-server.sh:/app/command-server.sh
+    ports:
+      - "6004:6004"
