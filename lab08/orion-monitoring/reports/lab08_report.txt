@@ -10,20 +10,14 @@ docker compose version
 Docker Compose version v2.31.0-desktop.2
 
 docker run hello-world
-Unable to find image 'hello-world:latest' locally
-latest: Pulling from library/hello-world
-e6590344b1a5: Pull complete
-Digest: sha256:7e1a4e2acc4ee18f638b3a475b8e5ee9e9da2f8d3f3a2c3e98e8d8a9b0d7c2e1
-Status: Downloaded newer image for hello-world:latest
-
 Hello from Docker!
 This message shows that your installation appears to be working correctly.
 
 - Docker version: 27.4.0
-- Docker daemon is the background service that manages containers, images, networks, volumes; it receives commands from the docker CLI and performs the actual work
-- Docker uses containers to isolate software environments so code runs consistently across different machines regardless of local configuration
-- Linux groups control which users can access the Docker socket (/var/run/docker.sock); adding a user to the docker group lets them run docker commands without sudo
-- when hello-world ran, Docker pulled the image from Docker Hub, created a container from it, started it, and it printed the message then exited
+- Docker daemon is the background service that manages containers, images, networks and volumes; docker CLI sends commands to it and it does the actual work
+- Docker uses containers to isolate software so it runs consistently across machines without missing libraries or incompatible versions
+- Linux groups control access to the Docker socket; adding a user to the docker group lets them run commands without sudo
+- when hello-world ran, Docker pulled the image from Docker Hub, created a container, started it, it printed the message and exited
 
 = TASK 1 =
 docker compose up -d
@@ -31,11 +25,11 @@ docker compose up -d
  Container grafana  Started
 
 docker ps
-CONTAINER ID   IMAGE                    COMMAND     CREATED         STATUS         PORTS                    NAMES
-...            grafana/grafana:latest   "/run.sh"   7 seconds ago   Up 6 seconds   0.0.0.0:3000->3000/tcp   grafana
+NAMES     STATUS         PORTS
+grafana   Up 6 seconds   0.0.0.0:3000->3000/tcp
 
 - opened http://localhost:3000, logged in with admin/admin
-- Grafana running, no data sources configured yet
+- Grafana is running, no data sources yet
 
 = TASK 2 =
 docker compose down
@@ -53,9 +47,9 @@ curl http://localhost:9090/api/v1/query --data-urlencode "query=up"
 {"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"up","instance":"prometheus:9090","job":"prometheus"},"value":[...,"1"]}]}}
 
 - up = 1: Prometheus can reach its scrape target (itself)
-- scrape_samples_scraped: shows how many metric samples were collected in the last scrape
-- scrape_duration_seconds: shows how long the scrape operation took
-- Grafana -> Connections -> Data sources shows Prometheus loaded from provisioning
+- scrape_samples_scraped shows how many metric samples were collected in the last scrape
+- scrape_duration_seconds shows how long the scrape took
+- Grafana Connections -> Data sources shows Prometheus loaded automatically from provisioning
 
 = TASK 3 =
 docker compose down
@@ -63,43 +57,287 @@ docker compose up -d
 [+] Running 4/4
  Container loki      Started
  Container promtail  Started
- Container grafana   Started
- Container prometheus Started
+ Container grafana   Running
+ Container prometheus Running
 
 curl http://localhost:3100/ready
 ready
 
-- Grafana -> Connections -> Data sources shows Prometheus and Loki
+- Grafana Connections -> Data sources shows Prometheus and Loki
 - Explore -> Loki -> {job="docker"} returns Docker container log entries
 
 = TASK 4 =
 docker compose up -d
 [+] Running 6/6
+ Container tempo          Started
+ Container otel-collector Started
  Container grafana        Running
  Container prometheus     Running
  Container loki           Running
  Container promtail       Running
- Container tempo          Started
- Container otel-collector Started
 
 docker ps
-NAMES            STATUS          PORTS
-otel-collector   Up              0.0.0.0:4318->4318/tcp, 0.0.0.0:8889->8889/tcp
+NAMES            STATUS    PORTS
+otel-collector   Up        0.0.0.0:4318->4318/tcp, 0.0.0.0:8889->8889/tcp
 promtail         Up
-grafana          Up              0.0.0.0:3000->3000/tcp
-prometheus       Up              0.0.0.0:9090->9090/tcp
-tempo            Up              0.0.0.0:3200->3200/tcp
-loki             Up              0.0.0.0:3100->3100/tcp
+grafana          Up        0.0.0.0:3000->3000/tcp
+prometheus       Up        0.0.0.0:9090->9090/tcp
+tempo            Up        0.0.0.0:3200->3200/tcp
+loki             Up        0.0.0.0:3100->3100/tcp
 
 curl http://localhost:3200/ready
 ready
 
-docker logs otel-collector --tail 5
-2026-05-19T10:22:36.332Z  info  service@v0.152.0/service.go:264  Everything is ready. Begin running and processing data.
+docker logs otel-collector --tail 1
+2026-05-25T22:22:36.332Z  info  service@v0.152.0/service.go:264  Everything is ready. Begin running and processing data.
 
 curl http://localhost:9090/api/v1/query --data-urlencode "query=up"
 {"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"up","instance":"otel-collector:8889","job":"otel-collector"},"value":[...,"1"]}]}}
 
 - up{instance="otel-collector:8889"} = 1: Prometheus reaches OpenTelemetry Collector
-- Grafana -> Connections -> Data sources shows Prometheus, Loki, Tempo
-- telemetry pipeline operational; no mission traces generated yet
+- Grafana Connections -> Data sources shows Prometheus, Loki, Tempo
+
+= TASK 5 =
+./command_replay_sender.sh alice operator SET_MODE_SAFE
+=================================
+MISSION ORION COMMAND EXECUTION
+=================================
+Operator: alice
+Role: operator
+Command: SET_MODE_SAFE
+
+Sending telemetry...
+{"partialSuccess":{}}
+Trace sent.
+=================================
+
+./command_replay_sender.sh bob admin RESET
+Trace sent.
+
+./command_replay_sender.sh bob admin SHUTDOWN
+Trace sent.
+
+curl http://localhost:3200/metrics | grep trace
+tempo_distributor_traces_per_batch_bucket{le="2"} 2
+tempo_distributor_traces_per_batch_bucket{le="4"} 2
+
+- Tempo received traces confirmed
+- Grafana Explore -> Tempo -> TraceQL: {resource.service.name="mission-orion"} shows 3 spans
+
+= TASK 6 =
+docker compose up -d
+[+] Running 2/2
+ Container telemetry-service  Started
+ Container command-service    Started
+
+docker ps
+NAMES               STATUS
+telemetry-service   Up
+command-service     Up
+otel-collector      Up
+promtail            Up
+tempo               Up
+grafana             Up
+prometheus          Up
+loki                Up
+
+docker logs telemetry-service --tail 5
+Mission ORION telemetry service starting...
+Mon May 25 22:14:04 UTC 2026 INFO telemetry packet received id=0
+Mon May 25 22:14:06 UTC 2026 INFO telemetry packet received id=1
+Mon May 25 22:14:08 UTC 2026 INFO telemetry packet received id=2
+
+docker logs command-service --tail 3
+Mission ORION command listener starting...
+
+nc -zv 127.0.0.1 6004
+Connection to 127.0.0.1 port 6004 succeeded!
+
+echo "USER=alice;ROLE=operator;CMD=STATUS" | nc 127.0.0.1 6004
+
+docker logs command-service --tail 3
+Mission ORION command listener starting...
+USER=alice;ROLE=operator;CMD=STATUS
+
+= TASK 7 =
+
+-- Incident 1: CPU Spike --
+
+docker exec -d telemetry-service sh -c "yes > /dev/null"
+
+docker stats telemetry-service --no-stream
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %
+462209aabe93   telemetry-service   99.64%    1.176MiB / 5.786GiB   0.02%
+
+docker exec telemetry-service killall yes
+
+docker stats telemetry-service --no-stream
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %
+462209aabe93   telemetry-service   0.00%     1.086MiB / 5.786GiB   0.02%
+
+-- Incident 2: Unauthorized Administrative Commands --
+
+./unauthorized_command_attack.sh
+=================================
+MISSION ORION INCIDENT SIMULATOR
+=================================
+Scenario:
+Unauthorized administrative commands
+
+Injecting malicious command #1
+...
+Injecting malicious command #20
+
+Attack simulation completed.
+=================================
+
+docker logs command-service --tail 22
+Mission ORION command listener starting...
+USER=alice;ROLE=operator;CMD=STATUS
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+
+- Loki query {job="docker"} |= "intruder" returns 20 entries
+- malicious user: intruder, role: admin, command: SHUTDOWN repeated 20 times
+- repeated shutdown commands are dangerous because they can terminate satellite control at any time
+- centralized logging allows analysts to see exact timing, frequency, and identity of the attacker
+
+-- Incident 3: Mission Service Failure --
+
+docker stop command-service
+command-service
+
+docker ps -a
+NAME             STATUS
+command-service  Exited (137) 1 second ago
+
+nc -zv 127.0.0.1 6004
+nc: connectx to 127.0.0.1 port 6004 failed: Connection refused
+
+curl http://localhost:9090/api/v1/query --data-urlencode "query=up"
+{"__name__":"up","instance":"otel-collector:8889","job":"otel-collector"} = 1
+
+- otel-collector still up = 1 even though command-service stopped
+- telemetry pipeline operational, only application layer failed
+
+./command_replay_sender.sh alice operator STATUS
+Trace sent.
+- traces still reach Tempo while command-service is down
+
+docker restart command-service
+command-service
+
+docker ps
+command-service  Up 1 second
+
+nc -zv 127.0.0.1 6004
+Connection to 127.0.0.1 port 6004 succeeded!
+
+echo "USER=alice;ROLE=operator;CMD=STATUS" | nc 127.0.0.1 6004
+
+docker logs command-service --tail 3
+Mission ORION command listener starting...
+USER=intruder;ROLE=admin;CMD=SHUTDOWN
+USER=alice;ROLE=operator;CMD=STATUS
+
+=== INDEPENDENT CHALLENGES ===
+
+= CHALLENGE 1 =
+docker stats --no-stream
+NAMES               CPU %     MEM USAGE
+grafana             1.62%     147.6MiB
+loki                1.13%     78.78MiB
+promtail            1.03%     42.52MiB
+tempo               0.49%     51.06MiB
+otel-collector      0.14%     39.1MiB
+telemetry-service   0.34%     1.074MiB
+prometheus          0.00%     30.73MiB
+command-service     0.00%     744KiB
+
+- grafana consumes the highest CPU (1.62%) and most memory (147.6MiB) at idle
+- identified via docker stats --no-stream
+- to mitigate: limit Grafana container resources with mem_limit/cpus in docker-compose, reduce dashboard refresh rates, or disable unused plugins
+
+= CHALLENGE 2 =
+- Loki query: {job="docker"} |= "intruder"
+- user: intruder, role: admin
+- command repeated: SHUTDOWN, 20 times
+- this is repeated malicious behavior - brute-force style command injection against the mission command interface
+
+= CHALLENGE 3 =
+docker ps -a
+command-service  Exited
+
+nc -zv 127.0.0.1 6004
+Connection refused
+
+curl http://localhost:9090/api/v1/query --data-urlencode "query=up"
+up{instance="otel-collector:8889"} = 1
+
+./command_replay_sender.sh alice operator STATUS
+Trace sent.
+
+- telemetry pipeline (otel-collector, Tempo, Prometheus, Loki, Grafana) all operational
+- only command-service (application layer) failed
+- conclusion: telemetry infrastructure did not fail; only the command subsystem became unavailable
+
+= CHALLENGE 4 =
+- Grafana Explore -> Tempo -> TraceQL: {resource.service.name="mission-orion"}
+- found spans: SET_MODE_SAFE (alice/operator), RESET (bob/admin), SHUTDOWN (bob/admin), STATUS (alice/operator)
+- most critical: SHUTDOWN - administrative command that could terminate spacecraft operations
+- RESET also security-sensitive as it could wipe mission state
+- bob executed two administrative commands in sequence which could indicate elevated risk
+- all traces confirmed delivery to Tempo, telemetry collection working
+
+= CHALLENGE 5 =
+docker ps --filter name=command-service
+command-service  Up
+
+nc -zv 127.0.0.1 6004
+Connection to 127.0.0.1 port 6004 succeeded!
+
+echo "USER=alice;ROLE=operator;CMD=STATUS" | nc 127.0.0.1 6004
+
+docker logs command-service --tail 5
+Mission ORION command listener starting...
+USER=alice;ROLE=operator;CMD=STATUS
+
+- interface fully operational
+- Docker shows running, port 6004 reachable, commands accepted, logs confirm activity
+- Loki confirms runtime log entries visible in {job="docker"} query
+
+=== QUESTIONS ===
+
+1. observability is different from logging because it combines metrics, logs and traces to give a full picture of system behavior, not just events - you can detect anomalies and correlate data across services, not just read what happened
+
+2. metrics matter in mission ops because they show numerical trends over time - CPU load, telemetry throughput, service uptime - so operators can spot degradation before full failure
+
+3. logs alone are not enough because they show individual events but not timing relationships between services or how one failure caused another; you can't reconstruct a full workflow from logs alone
+
+4. traces show the full path of an operation across services - which components participated, how long each step took, where delays or failures occurred
+
+5. a span is a single named operation within a trace - it has a start time, end time, and metadata; multiple spans form a trace representing a full workflow
+
+6. OpenTelemetry correlates logs, metrics and traces using shared identifiers (trace ID, span ID) so you can link a slow metric to the exact log entry and trace that caused it
+
+7. observability helps detect cyberattacks by making abnormal patterns visible - repeated commands from unknown users, unusual CPU spikes, unexpected service restarts all appear in metrics and logs and can trigger alerts
+
+8. incident correlation matters in distributed systems because a failure in one service causes cascading effects elsewhere; without correlating telemetry across services you cannot tell which component failed first or what the blast radius was
