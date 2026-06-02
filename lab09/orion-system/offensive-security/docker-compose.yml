@@ -1,0 +1,6 @@
+services:
+  metasploit:
+    image: metasploitframework/metasploit-framework
+    container_name: metasploit
+    stdin_open: true
+    tty: true
