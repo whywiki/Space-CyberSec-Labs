@@ -16,7 +16,7 @@ services:
 docker compose up -d
 docker ps
 CONTAINER ID   IMAGE                                      COMMAND                  CREATED         STATUS         PORTS     NAMES
-9efda6537521   metasploitframework/metasploit-framework   "docker/entrypoint.s…"   4 seconds ago   Up 3 seconds             metasploit
+9efda6537521   metasploitframework/metasploit-framework   "docker/entrypoint.s."   4 seconds ago   Up 3 seconds             metasploit
 
 # reflection
 - defined: metasploit container based on metasploitframework/metasploit-framework image
@@ -38,7 +38,7 @@ services:
 docker compose up -d
 docker ps
 CONTAINER ID   IMAGE                  COMMAND                  CREATED         STATUS        PORTS                      NAMES
-df143b1d3190   vulhub/webmin:1.910    "/docker-entrypoint.…"   16 seconds ago  Up 7 seconds  0.0.0.0:10000->10000/tcp   cve-2019-15107-web-1
+df143b1d3190   vulhub/webmin:1.910    "/docker-entrypoint.."   16 seconds ago  Up 7 seconds  0.0.0.0:10000->10000/tcp   cve-2019-15107-web-1
 
 curl -k https://localhost:10000
 <!DOCTYPE HTML>
